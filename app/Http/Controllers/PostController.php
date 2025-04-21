@@ -4,82 +4,85 @@ namespace App\Http\Controllers;
 
 use App\Models\Post;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Routing\Controller;
 
 class PostController extends Controller
 {
-    /**
-     * Display a listing of the posts.
-     */
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
     public function index()
     {
-        $posts = Post::latest()->paginate(5);
+        $posts = Post::where('user_id', Auth::id())->latest()->paginate(5);
         return view('posts.index', compact('posts'));
     }
 
-    /**
-     * Show the form for creating a new post.
-     */
     public function create()
     {
         return view('posts.create');
     }
 
-    /**
-     * Store a newly created post in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
             'title' => 'required',
             'body' => 'required',
         ]);
-        
-        Post::create($request->all());
-        
+
+        Post::create([
+            'title' => $request->title,
+            'body' => $request->body,
+            'user_id' => Auth::id(),
+        ]);
+
         return redirect()->route('posts.index')
             ->with('success', 'Post created successfully.');
     }
 
-    /**
-     * Display the specified post.
-     */
     public function show(Post $post)
     {
+        $this->authorizePost($post);
         return view('posts.show', compact('post'));
     }
 
-    /**
-     * Show the form for editing the specified post.
-     */
     public function edit(Post $post)
     {
+        $this->authorizePost($post);
         return view('posts.edit', compact('post'));
     }
 
-    /**
-     * Update the specified post in storage.
-     */
     public function update(Request $request, Post $post)
     {
+        $this->authorizePost($post);
+
         $request->validate([
             'title' => 'required',
             'body' => 'required',
         ]);
-        
-        $post->update($request->all());
-        
+
+        $post->update($request->only('title', 'body'));
+
         return redirect()->route('posts.index')
             ->with('success', 'Post updated successfully');
     }
 
-    /**
-     * Remove the specified post from storage.
-     */
     public function destroy(Post $post)
     {
+        $this->authorizePost($post);
+
         $post->delete();
-        
+
         return redirect()->route('posts.index')
             ->with('success', 'Post deleted successfully');
+    }
+
+    private function authorizePost(Post $post)
+    {
+        if ($post->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized action.');
+        }
     }
 }
